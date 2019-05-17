@@ -203,7 +203,7 @@ def chianti_kev_lines(energy_edges, temperature, emission_measure=1e44/u.cm**3,
         wghtline = wghtline and np.max([(wedg0a/wedg0).max(), (wedg0b/wedg0).max()]) < 2.) \
           and (wedg0.max() < 1.5)
         """
-
+        hhh = [len(rrr) for rrr in rr]
         if wghtline:
             if hhh[0] >= 1:
                 etst = rr[0]
@@ -335,9 +335,10 @@ def chianti_kev_line_common_load(file_in=None):
 
     # Repackage metadata from file.
     date = []
-    for date_bytes in out["DATE"]:
-        date_strings = str(date_str[3:], 'utf-8').split()
-        date.append(parse_time("{0}-{1}-{2} {3}".format(date[3], date[0], date[1], date[2])))
+    for date_byte in out["DATE"]:
+        date_strings = str(date_byte[3:], 'utf-8').split()
+        date.append(parse_time("{0}-{1}-{2} {3}".format(date_strings[3], date_strings[0],
+                                                        date_strings[1], date_strings[2])))
     if len(date) == 1:
         date = date[0]
     line_meta = {
@@ -362,33 +363,45 @@ def chianti_kev_line_common_load(file_in=None):
         }
 
     # Repackage out["line"] into a Table with appropriate units.
-    line_prop_dict = {}
-    for i, lines in enumerate(out["line"]):
-        line_properties = Table()
-        line_properties["IZ"] = Column(lines[i]["IZ"], description="Atomic number of ion element.")
-        line_properties["ION"] = Column(lines[i]["ION"], description="{0} {1}".format(
-            "Integer ionization state in astronomical notation, i.e. ION-1 = negative charge of ion."))
-        line_properties["IDENT"] = Column(lines[i]["IDENT"])
-        line_properties["IDENT_LATEX"] = Column(lines[i]["IDENT_LATEX"])
-        line_properties["SNOTE"] = Column(lines[i]["SNOTE"],
+    # Create a list of tables to make sure all data in file is captured.
+    # Although only one iteration is expected.
+    line_properties = []
+    line_intensities = []
+    for lines in out["lines"]:
+        line_props = Table()
+        line_props["IZ"] = Column(lines["IZ"], description="Atomic number of ion element.")
+        line_props["ION"] = Column(lines["ION"],
+            description="Integer ionization state in astronomical notation, i.e. ION-1 = negative charge of ion.")
+        line_props["IDENT"] = Column(lines["IDENT"])
+        line_props["IDENT_LATEX"] = Column(lines["IDENT_LATEX"])
+        line_props["SNOTE"] = Column(lines["SNOTE"],
             description="Ion label in astronomical (roman numeral) notation.")
-        line_properties["LVL1"] = Column(lines[i]["LVL1"])
-        line_properties["LVL2"] = Column(lines[i]["LVL2"])
-        line_properties["TMAX"] = Column(lines[i]["TMAX"])
-        line_properties["WVL"] = Column(lines[i]["WVL"], unit=line_meta["WVL_UNITS"])
-        line_properties["ENERGY"] = line_properties["WVL"].quantity.to(u.keV, equivalencies=u.spectral())
-        line_properties["FLAG"] = Column(lines[i]["FLAG"])
+        line_props["LVL1"] = Column(lines["LVL1"])
+        line_props["LVL2"] = Column(lines["LVL2"])
+        line_props["TMAX"] = Column(lines["TMAX"])
+        line_props["WVL"] = Column(lines["WVL"], unit=line_meta["WVL_UNITS"])
+        line_props["ENERGY"] = line_props["WVL"].quantity.to(u.keV, equivalencies=u.spectral())
+        line_props["FLAG"] = Column(lines["FLAG"])
 
         # Repackage line intensities into single 2D array.
-        line_intensities = np.empty((lines[i]["INT"].shape[0], lines[i]["INT"][0].shape[0]), dtype=float)
-        for i in range(line_intensities.shape[0]):
-            line_intensities[i, :] = lines[i]["INT"][i][:]
-        line_intensities = u.Quantity(line_intensities, unit=line_meta["INT_UNITS"])
+        line_ints = np.empty((lines["INT"].shape[0], lines["INT"][0].shape[0]), dtype=float)
+        for i in range(line_ints.shape[0]):
+            line_ints[i, :] = lines["INT"][i][:]
+        line_ints = u.Quantity(line_ints, unit=line_meta["INT_UNITS"])
 
         # Sort lines in ascending energy.
-        ordd = np.argsort(np.array(line_properties["WVL"]))[::-1]
-        line_properties = line_properties[ordd]
-        line_intensities[ordd]
+        ordd = np.argsort(np.array(line_props["WVL"]))[::-1]
+        line_props = line_props[ordd]
+        line_ints[ordd]
+
+        # Enter outputs from this iteration into list.
+        line_properties.append(line_props)
+        line_intensities.append(line_ints)
+
+    # If there is only one element in the line properties, unpack values.
+    if len(out["lines"]) == 1:
+        line_properties = line_properties[0]
+        line_intensities = line_intensities[0]
     
     return zindex, line_meta, line_properties, line_intensities
     
@@ -532,7 +545,6 @@ def _extract_from_chianti_lines_sav():
     line_element_indices = lines["iz"][ordd]
     # Extract the zindex
     element_indices = struct["zindex"]
-    
 
     return line_energies, log10_temp_K_range, line_intensities, line_element_indices,\
       element_indices, line_element_indices
@@ -647,10 +659,9 @@ def _clean_units(arr):
 
 def _clean_chianti_doc(arr):
     chianti_doc = {}
-    chianti_doc["ion_file"] = str(contents_cont['chianti_doc'][0][0], 'utf-8')
-    chianti_doc["ion_ref"] = "{0}.{1}.{2}".format(
-        str(contents["chianti_doc"]["ion_ref"][0][0], 'utf-8'),
-        str(contents["chianti_doc"]["ion_ref"][0][1], 'utf-8'),
-        str(contents["chianti_doc"]["ion_ref"][0][2], 'utf-8'))
-    chianti_doc["version"] = str(contents_cont['chianti_doc'][0][2], 'utf-8')
+    chianti_doc["ion_file"] = str(arr[0][0], 'utf-8')
+    chianti_doc["ion_ref"] = "{0}.{1}.{2}".format(str(arr["ion_ref"][0][0], 'utf-8'),
+                                                  str(arr["ion_ref"][0][1], 'utf-8'),
+                                                  str(arr["ion_ref"][0][2], 'utf-8'))
+    chianti_doc["version"] = str(arr[0][2], 'utf-8')
     return chianti_doc
