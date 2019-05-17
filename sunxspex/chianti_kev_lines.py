@@ -353,7 +353,8 @@ def chianti_kev_line_common_load(file_in=None):
         "VERSION": _clean_string_dims(contents["out"]['VERSION']),
         "PHOTOEXCITATION": _clean_array_dims(contents["out"]["PHOTOEXCITATION"], dtype=int),
         "LOGT_ISOTHERMAL": _clean_array_dims(contents["out"]["LOGT_ISOTHERMAL"]),
-        "LOGEM_ISOTHERMAL": _clean_array_dims(contents["out"]["LOGEM_ISOTHERMAL"])
+        "LOGEM_ISOTHERMAL": _clean_array_dims(contents["out"]["LOGEM_ISOTHERMAL"]),
+        "chianti_doc": _clean_chianti_doc(contents["chianti_doc"])
         }
 
     # Repackage out["line"][0] into a Table with appropriate units.
@@ -430,10 +431,7 @@ def chianti_kev_cont_common_load(file_in, _extra=None):
                 "totcont_lo": contents["totcont_lo"],
                 "edge_str": edge_str,
                 "ctemp": contents["ctemp"],
-                "chianti_doc": "{0}.{1}.{2}".format(
-                    str(contents["chianti_doc"]["ion_ref"][0][0], 'utf-8'),
-                    str(contents["chianti_doc"]["ion_ref"][0][1], 'utf-8'),
-                    str(contents["chianti_doc"]["ion_ref"][0][2], 'utf-8'))
+                "chianti_doc": _clean_chianti_doc(contents["chianti_doc"])
                                }
     elif file_in.split(".")[-1] == "geny":
         # Read file...
@@ -641,3 +639,14 @@ def _clean_units(arr):
         result = result[0]
 
     return result
+
+
+def _clean_chianti_doc(arr):
+    chianti_doc = {}
+    chianti_doc["ion_file"] = str(contents_cont['chianti_doc'][0][0], 'utf-8')
+    chianti_doc["ion_ref"] = "{0}.{1}.{2}".format(
+        str(contents["chianti_doc"]["ion_ref"][0][0], 'utf-8'),
+        str(contents["chianti_doc"]["ion_ref"][0][1], 'utf-8'),
+        str(contents["chianti_doc"]["ion_ref"][0][2], 'utf-8'))
+    chianti_doc["version"] = str(contents_cont['chianti_doc'][0][2], 'utf-8')
+    return chianti_doc
