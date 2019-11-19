@@ -9,8 +9,7 @@ import scipy.io
 from sunpy.io.special.genx import read_genx
 from sunpy.time import parse_time
 
-SSWDB_XRAY_CHIANTI = os.path.expanduser(os.path.join("~", "ssw", "packages",
-                                                     "xray", "dbase", "chianti"))
+SSWDB_XRAY_CHIANTI = os.path.expanduser(os.path.join("/usr", "local", "ssw", "packages", "xray", "dbase", "chianti"))
 
 
 def chianti_kev_line_common_load_light(linefile=None):
