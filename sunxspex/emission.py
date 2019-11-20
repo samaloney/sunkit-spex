@@ -1,4 +1,11 @@
 """
+Functions for computing the photon flux due to bremsstrahlung radiation from energetic electrons
+impacting a dense plasma.
+
+References
+----------
+
+.. [1] https://hesperia.gsfc.nasa.gov/hessi/flarecode/bremthickdoc.pdf
 
 """
 import numpy as np
@@ -6,8 +13,8 @@ from scipy.special import lpmv
 
 from sunxspex.constants import Constants
 
+# Central constant management
 const = Constants()
-
 
 # def bremsstrahlung(elecctron_dist, e_low, e_high, ):
 #     """
@@ -44,7 +51,7 @@ const = Constants()
 
 def broken_powerlaw(x, p, q, eelow, eebrk, eehigh):
     """
-    Return Power law of x with a break and low and high cutoffs
+    Return power law of x with a break and low and high cutoffs
 
     Parameters
     ----------
@@ -77,22 +84,22 @@ def broken_powerlaw(x, p, q, eelow, eebrk, eehigh):
 
     norm = 1.0 / (n1 + n2)
 
-    F_E = np.zeros_like(x)
+    res = np.zeros_like(x)
 
     if np.where(x < eelow)[0].size > 0:
-        F_E[np.where(x < eelow)[0]] = 1.0
+        res[np.where(x < eelow)[0]] = 1.0
 
     if np.where((x < eebrk) & (x > eelow))[0].size > 0:
-        F_E[np.where((x < eebrk) & (x > eelow))[0]] = norm * (
+        res[np.where((x < eebrk) & (x > eelow))[0]] = norm * (
                     n0 * eelow ** (p - 1) * x[np.where((x < eebrk) & (x > eelow))[0]] ** (
                         1.0 - p) - (q - 1.0) / (p - 1.0) + n2)
 
     if np.where((x < eehigh) & (x > eebrk))[0].size > 0:
-        F_E[np.where((x < eehigh) & (x > eebrk))[0]] = norm * (
+        res[np.where((x < eehigh) & (x > eebrk))[0]] = norm * (
                     eebrk ** (q - 1) * x[np.where((x < eehigh) & (x > eebrk))[0]] ** (1.0 - q) - (
                         1.0 - n2))
 
-    return F_E
+    return res
 
 
 def powerlaw(x, low_energy_cutoff=10, high_energy_cutoff=100, index=3):
@@ -182,7 +189,7 @@ def bremsstrahlung_cross_section(electron_energy, photon_energy, z=1.2):
     alpha = const.get_constant('alpha')
     twoar02 = const.get_constant('twoar02')
 
-    # Numerical coefficients.
+    # Numerical coefficients
     c11 = 4.0 / 3.0
     c12 = 7.0 / 15.0
     c13 = 11.0 / 70.0
@@ -191,7 +198,10 @@ def bremsstrahlung_cross_section(electron_energy, photon_energy, z=1.2):
     c23 = 263.0 / 210.0
 
     # Calculate normalized photon and total electron energies.
-    k = np.expand_dims(photon_energy / mc2, axis=1)
+    if electron_energy.ndim == 2:
+        k = np.expand_dims(photon_energy / mc2, axis=1)
+    else:
+        k = photon_energy / mc2
     e1 = (electron_energy / mc2) + 1.0
 
     # Calculate energies of scatter electrons and normalized momenta.
@@ -278,7 +288,7 @@ def brem_outer(electron_energy, photon_energy, eelow, eebrk, eehigh, p, q, z=1.2
 
 def brm_guass_legendre(x1, x2, npoints):
     """
-    Calculate the positions and weights for Gauss-Legendre a integration scheme.
+    Calculate the positions and weights for a Gauss-Legendre integration scheme.
 
     Parameters
     ----------
@@ -308,17 +318,23 @@ def brm_guass_legendre(x1, x2, npoints):
     xl = 0.5 * (x2 - x1)
 
     for i in range(1, m + 1):
+
         z = np.cos(np.pi * (i - 0.25) / (npoints + 0.5))
+        # Init to np.inf so loop runs at least once
         z1 = np.inf
+
+        # Some kind of integration/update loop
         while np.abs(z - z1) > eps:
+            # Evaluate Legendre polynomial of degree npoints at z points P_m^l(z) m=0, l=npoints
             p1 = lpmv(0, npoints, z)
             p2 = lpmv(0, npoints - 1, z)
 
-            pp = npoints * (z * p1 - p2) / (z ** 2 - 1.0)
+            pp = npoints * (z * p1 - p2) / (z**2 - 1.0)
 
             z1 = z
             z = z1 - p1 / pp
 
+        # Update ith components
         x[:, i - 1] = xm - xl * z
         x[:, npoints - i] = xm + xl * z
         w[:, i - 1] = 2.0 * xl / ((1.0 - z ** 2) * pp ** 2)
@@ -329,7 +345,9 @@ def brm_guass_legendre(x1, x2, npoints):
 
 def brm2_dmlino_int(maxfcn, rerr, eph, eelow, eebrk, eehigh, p, q, z, a_lg, b_lg, l):
     """
-    Perform numerical Gaussian-Legendre Quadrature integration for thick target model
+    Perform numerical Gaussian-Legendre Quadrature integration for thick target model.
+
+    Double the number of points until convergence criterion is reached then return
 
     Parameters
     ----------
@@ -366,9 +384,11 @@ def brm2_dmlino_int(maxfcn, rerr, eph, eelow, eebrk, eehigh, p, q, z, a_lg, b_lg
     -----
     Initial version modified from SSW Brm2_DmlinO_int.pro
     """
-    nlim = 12
+    nlim = 12  # 4096 points
 
+    # Output arrays
     intsum = np.zeros_like(eph, dtype=np.float64)
+    lastsum = np.zeros_like(eph)
     ier = np.zeros_like(eph)
 
     for ires in range(2, nlim):
@@ -379,14 +399,19 @@ def brm2_dmlino_int(maxfcn, rerr, eph, eelow, eebrk, eehigh, p, q, z, a_lg, b_lg
 
         eph1 = eph[l]
 
+        # generate positions and weights
         xi, wi, = brm_guass_legendre(a_lg, b_lg, npoint)
-        lastsum = np.copy(intsum)
+        lastsum[:] = intsum
+
+        # Perform integration sum w_i * f(x_i)  i=1 to npoints
         intsum[l] = np.sum((10.0 ** xi * np.log(10.0) * wi
                             * brem_outer(10.0 ** xi, eph1, eelow, eebrk, eehigh, p, q, z)), axis=1)
+        # Convergence criterion
         l1 = np.abs(intsum - lastsum)
         l2 = rerr * np.abs(intsum)
         ll = np.where(l1 > l2)
 
+        # If all point have reached criterion return value and flags
         if ll[0].size == 0:
             return intsum, ier
 
@@ -453,7 +478,7 @@ def brm2_dmlino(a, b, maxfcn, rerr, eph, eelow, eebrk, eehigh, p, q, z):
         a_lg = np.log10(a[P1])
         b_lg = np.log10(np.full_like(a_lg, en_vals[0]))
 
-        l = P1
+        l = P1[0]
 
         intsum1, ier1 = brm2_dmlino_int(maxfcn, rerr, eph, eelow, eebrk, eehigh,
                                         p, q, z, a_lg, b_lg, l)
@@ -469,8 +494,8 @@ def brm2_dmlino(a, b, maxfcn, rerr, eph, eelow, eebrk, eehigh, p, q, z):
     P2 = np.where(a < en_vals[1])
 
     if (P2[0].size > 0) and (en_vals[1] > en_vals[0]):
-        if P1[0] != -1:
-            aa[P1] = en_vals
+        if P1[0].size > 0:
+            aa[P1[0]] = en_vals[0]
 
         aa[P1] = en_vals[0]
         a_lg = np.log10(aa[P2])
@@ -505,6 +530,8 @@ def brm2_dmlino(a, b, maxfcn, rerr, eph, eelow, eebrk, eehigh, p, q, z):
         if sum(ier3) > 0:
             raise ValueError('Part 3 integral did not converge for some photon energies.')
 
+    # TODO check units here
+    # Combine 3 parts and convert units and return
     DmlinO = (intsum1 + intsum2 + intsum3) * (mc2 / clight)
     ier = ier1 + ier2 + ier3
 
@@ -569,7 +596,6 @@ def bremstralung_thicktarget(eph, p, eebrk, q, eelow, eehigh):
     decoeff = 4.0 * np.pi * (r0 ** 2) * clight
 
     # Create arrays for the photon flux and error flags.
-
     flux = np.zeros_like(eph, dtype=np.float64)
     iergq = np.zeros_like(eph, dtype=np.float64)
 
