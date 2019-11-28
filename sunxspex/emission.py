@@ -16,6 +16,9 @@ from sunxspex.constants import Constants
 # Central constant management
 const = Constants()
 
+np.seterr(all='raise')
+
+
 # def bremsstrahlung(elecctron_dist, e_low, e_high, ):
 #     """
 #     Summary
@@ -86,18 +89,17 @@ def broken_powerlaw(x, p, q, eelow, eebrk, eehigh):
 
     res = np.zeros_like(x)
 
-    if np.where(x < eelow)[0].size > 0:
-        res[np.where(x < eelow)[0]] = 1.0
+    index = np.where(x < eelow)
+    if index[0].size > 0:
+        res[index] = 1.0
 
-    if np.where((x < eebrk) & (x > eelow))[0].size > 0:
-        res[np.where((x < eebrk) & (x > eelow))[0]] = norm * (
-                    n0 * eelow ** (p - 1) * x[np.where((x < eebrk) & (x > eelow))[0]] ** (
-                        1.0 - p) - (q - 1.0) / (p - 1.0) + n2)
+    index = np.where((x < eebrk) & (x >= eelow))
+    if index[0].size > 0:
+        res[index] = norm * (n0 * eelow ** (p - 1) * x[index] ** (1.0 - p) - (q - 1.0) / (p - 1.0) + n2)
 
-    if np.where((x < eehigh) & (x > eebrk))[0].size > 0:
-        res[np.where((x < eehigh) & (x > eebrk))[0]] = norm * (
-                    eebrk ** (q - 1) * x[np.where((x < eehigh) & (x > eebrk))[0]] ** (1.0 - q) - (
-                        1.0 - n2))
+    index = np.where((x <= eehigh) & (x >= eebrk))
+    if index[0].size > 0:
+        res[index] = norm * (eebrk ** (q - 1) * x[index] ** (1.0 - q) - (1.0 - n2))
 
     return res
 
@@ -120,7 +122,7 @@ def powerlaw(x, low_energy_cutoff=10, high_energy_cutoff=100, index=3):
     #     (low_energy_cutoff**(index-1)/(index-1)))
 
     normalisation = 1 / (((high_energy_cutoff ** (2 - 2 * index)) / ((1 - index) ** 2)) - (
-                (low_energy_cutoff ** (2 - 2 * index)) / ((1 - index) ** 2)))
+            (low_energy_cutoff ** (2 - 2 * index)) / ((1 - index) ** 2)))
 
     return normalisation * x ** (1 - index)
 
@@ -324,15 +326,18 @@ def brm_guass_legendre(x1, x2, npoints):
         z1 = np.inf
 
         # Some kind of integration/update loop
-        while np.abs(z - z1) > eps:
+        while True:
             # Evaluate Legendre polynomial of degree npoints at z points P_m^l(z) m=0, l=npoints
             p1 = lpmv(0, npoints, z)
             p2 = lpmv(0, npoints - 1, z)
 
-            pp = npoints * (z * p1 - p2) / (z**2 - 1.0)
+            pp = npoints * (z * p1 - p2) / (z ** 2 - 1.0)
 
-            z1 = z
+            z1 = np.copy(z)
             z = z1 - p1 / pp
+            if np.abs(z - z1) <= eps:
+                break
+
 
         # Update ith components
         x[:, i - 1] = xm - xl * z
@@ -343,7 +348,7 @@ def brm_guass_legendre(x1, x2, npoints):
     return x, w
 
 
-def brm2_dmlino_int(maxfcn, rerr, eph, eelow, eebrk, eehigh, p, q, z, a_lg, b_lg, l):
+def brm2_dmlino_int(maxfcn, rerr, eph, eelow, eebrk, eehigh, p, q, z, a_lg, b_lg, ll):
     """
     Perform numerical Gaussian-Legendre Quadrature integration for thick target model.
 
@@ -372,7 +377,7 @@ def brm2_dmlino_int(maxfcn, rerr, eph, eelow, eebrk, eehigh, p, q, z, a_lg, b_lg
         Array of logarithm of lower integration limit
     b_lg :
         Array of logarithm of upper integration limit
-    l : np.array
+    ll : np.array
         Indices for which to carry out integration
 
     Returns
@@ -388,11 +393,13 @@ def brm2_dmlino_int(maxfcn, rerr, eph, eelow, eebrk, eehigh, p, q, z, a_lg, b_lg
 
     # Output arrays
     intsum = np.zeros_like(eph, dtype=np.float64)
-    lastsum = np.zeros_like(eph)
+
     ier = np.zeros_like(eph)
 
-    for ires in range(2, nlim):
-        npoint = 2**ires
+    l = ll[:]
+
+    for ires in range(2, nlim+1):
+        npoint = 2 ** ires
         if npoint > maxfcn:
             ier[l] = 1
             return intsum, ier
@@ -400,19 +407,19 @@ def brm2_dmlino_int(maxfcn, rerr, eph, eelow, eebrk, eehigh, p, q, z, a_lg, b_lg
         eph1 = eph[l]
 
         # generate positions and weights
-        xi, wi, = brm_guass_legendre(a_lg, b_lg, npoint)
-        lastsum[:] = intsum
+        xi, wi, = brm_guass_legendre(a_lg[l], b_lg[l], npoint)
+        lastsum = np.copy(intsum)
 
         # Perform integration sum w_i * f(x_i)  i=1 to npoints
         intsum[l] = np.sum((10.0 ** xi * np.log(10.0) * wi
-                            * brem_outer(10.0 ** xi, eph1, eelow, eebrk, eehigh, p, q, z)), axis=1)
+                             * brem_outer(10.0 ** xi, eph1, eelow, eebrk, eehigh, p, q, z)), axis=1)
         # Convergence criterion
         l1 = np.abs(intsum - lastsum)
         l2 = rerr * np.abs(intsum)
-        ll = np.where(l1 > l2)
+        l = np.where(l1 > l2)[0]
 
         # If all point have reached criterion return value and flags
-        if ll[0].size == 0:
+        if l.size == 0:
             return intsum, ier
 
 
@@ -462,6 +469,12 @@ def brm2_dmlino(a, b, maxfcn, rerr, eph, eelow, eebrk, eehigh, p, q, z):
     mc2 = const.get_constant('mc2')
     clight = const.get_constant('clight')
 
+    if eebrk < eelow:
+        eebrk = eelow
+
+    if eebrk > eehigh:
+        eebrk = eehigh
+
     en_vals = [eelow, eebrk, eehigh]
     en_vals = sorted(en_vals)
 
@@ -472,13 +485,14 @@ def brm2_dmlino(a, b, maxfcn, rerr, eph, eelow, eebrk, eehigh, p, q, z):
 
     # TODO put repeated code in private _function
 
-    P1 = np.where(a < en_vals[0])
+    P1 = np.where(a < en_vals[0])[0]
 
-    if P1[0].size > 0:
+    if P1.size > 0:
+        print('Part1')
         a_lg = np.log10(a[P1])
         b_lg = np.log10(np.full_like(a_lg, en_vals[0]))
 
-        l = P1[0]
+        l = np.copy(P1)
 
         intsum1, ier1 = brm2_dmlino_int(maxfcn, rerr, eph, eelow, eebrk, eehigh,
                                         p, q, z, a_lg, b_lg, l)
@@ -490,18 +504,19 @@ def brm2_dmlino(a, b, maxfcn, rerr, eph, eelow, eebrk, eehigh, p, q, z):
     # Part 2, between enval[0 and en_val[1](usually eelow and eebrk)
     intsum2 = np.zeros_like(a, dtype=np.float64)
     ier2 = np.zeros_like(a, dtype=np.float64)
-    aa = a
-    P2 = np.where(a < en_vals[1])
+    aa = np.copy(a)
+    P2 = np.where(a < en_vals[1])[0]
 
-    if (P2[0].size > 0) and (en_vals[1] > en_vals[0]):
-        if P1[0].size > 0:
-            aa[P1[0]] = en_vals[0]
+    if (P2.size > 0) and (en_vals[1] > en_vals[0]):
+        if P1.size > 0:
+            aa[P1] = en_vals[0]
 
-        aa[P1] = en_vals[0]
+        print('Part2')
+
         a_lg = np.log10(aa[P2])
         b_lg = np.log10(np.full_like(a_lg, en_vals[1]))
 
-        l = P2[0]
+        l = np.copy(P2)
 
         intsum2, ier2 = brm2_dmlino_int(maxfcn, rerr, eph, eelow, eebrk, eehigh,
                                         p, q, z, a_lg, b_lg, l)
@@ -513,16 +528,19 @@ def brm2_dmlino(a, b, maxfcn, rerr, eph, eelow, eebrk, eehigh, p, q, z):
     intsum3 = np.zeros_like(a, dtype=np.float64)
     ier3 = np.zeros_like(a, dtype=np.float64)
 
-    aa = a
-    P3 = np.where(a < en_vals[2])
+    aa = np.copy(a)
+    P3 = np.where(a <= en_vals[2])[0]
 
-    if (P3[0].size > 0) and (en_vals[2] > en_vals[1]):
-        if P2[0].size > 0:
+    if (P3.sum() > 0) and (en_vals[2] > en_vals[1]):
+        if P2.size > 0:
             aa[P2] = en_vals[1]
+
+        print('Part3')
+
         a_lg = np.log10(aa[P3])
         b_lg = np.log10(np.full_like(a_lg, en_vals[2]))
 
-        l = P3
+        l = np.copy(P3)
 
         intsum3, ier3 = brm2_dmlino_int(maxfcn, rerr, eph, eelow, eebrk, eehigh,
                                         p, q, z, a_lg, b_lg, l)
