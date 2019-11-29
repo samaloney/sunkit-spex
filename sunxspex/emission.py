@@ -326,6 +326,7 @@ def brm_guass_legendre(x1, x2, npoints):
         z1 = np.inf
 
         # Some kind of integration/update loop
+        # TODO put back as while condition loop
         while True:
             # Evaluate Legendre polynomial of degree npoints at z points P_m^l(z) m=0, l=npoints
             p1 = lpmv(0, npoints, z)
@@ -337,7 +338,6 @@ def brm_guass_legendre(x1, x2, npoints):
             z = z1 - p1 / pp
             if np.abs(z - z1) <= eps:
                 break
-
 
         # Update ith components
         x[:, i - 1] = xm - xl * z
@@ -396,6 +396,7 @@ def brm2_dmlino_int(maxfcn, rerr, eph, eelow, eebrk, eehigh, p, q, z, a_lg, b_lg
 
     ier = np.zeros_like(eph)
 
+    # TODO Probably not need test and remove
     l = ll[:]
 
     for ires in range(2, nlim+1):
@@ -469,6 +470,7 @@ def brm2_dmlino(a, b, maxfcn, rerr, eph, eelow, eebrk, eehigh, p, q, z):
     mc2 = const.get_constant('mc2')
     clight = const.get_constant('clight')
 
+    # TODO raise or also return input values
     if eebrk < eelow:
         eebrk = eelow
 
@@ -609,7 +611,7 @@ def bremstralung_thicktarget(eph, p, eebrk, q, eelow, eehigh):
     rerr = 1e-4
 
     # Numerical coefficient for photo flux
-    fcoeff = (1.0 / (4 * np.pi * au ** 2)) * (clight ** 2 / mc2 ** 4)
+    fcoeff = ((clight ** 2 / mc2 ** 4) / (4 * np.pi * au ** 2))
 
     decoeff = 4.0 * np.pi * (r0 ** 2) * clight
 
