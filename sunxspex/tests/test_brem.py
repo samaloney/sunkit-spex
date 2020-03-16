@@ -1,6 +1,7 @@
 import pytest
 import numpy as np
 import astropy.units as u
+import time
 
 from sunxspex import emission
 
@@ -47,7 +48,16 @@ def test_brem_thintarget():
     photon_energies = np.array([5, 10, 50, 150, 300, 500, 750, 1000], dtype=np.float64)
     res = emission.Brm2_ThinTarget(photon_energies, 5, 1000, 5, 10, 10000)
     # IDL code to generate values taken from cross flux
-    # flux = Brm2_ThinTarget([5, 10, 50, 150, 300, 500, 750, 1000], [1, 5,1000,5,10,10000])
+    # flux = Brm2_ThinTarget([5, 10, 50, 150, 300, 500, 750, 1000], [1, 5, 1000, 5, 10, 10000])
     res_idl = [1.3792306669225426e-53, 3.2319324672606256e-54, 1.8906418622815277e-58, 2.7707947605222644e-61,
                5.3706858279023008e-63, 3.4603542191953094e-64, 4.3847578461300751e-65, 1.0648152240531652e-65]
+    assert np.allclose(res, res_idl, rtol=1e-8)
+
+def test_brem_thintarget2():
+    photon_energies = np.array([5, 10, 50, 150, 300, 500, 750, 1000], dtype=np.float64)
+    res = emission.Brm2_ThinTarget(photon_energies, 3, 200, 6, 7, 10000)
+    # IDL code to generate values taken from cross flux
+    # flux = Brm2_ThinTarget([5, 10, 50, 150, 300, 500, 750, 1000], [1, 3, 200, 6, 7, 10000])
+    res_idl = [1.410470406773663e-53, 1.631245131596281e-54, 2.494893311659408e-57, 2.082487752231794e-59,
+               2.499983876763298e-61, 9.389452475896879e-63, 7.805504370370804e-64, 1.414135608438244e-64]
     assert np.allclose(res, res_idl, rtol=1e-8)

@@ -46,11 +46,14 @@ def broken_powerlaw(x, p, q, eelow, eebrk, eehigh):
 
     Notes
     -----
-    Initial version modified from SSW Brm2_Distrn.pro
+    A normalized, double power law electron distribution function is computed.
+    p is the lower power-law index, between eelow and eebrk, and q is the
+    upper power-law index, between eebrk and eehigh.
 
     History
     -----
-    03/15/2020, Bin Chen (bin.chen@njit.edu), adapted from SSW Brm2_Distrn.pro
+    03/15/2020, Bin Chen (bin.chen@njit.edu), adapted from SSW Brm2_Distrn.pro:
+        https://hesperia.gsfc.nasa.gov/ssw/packages/xray/idl/brm2/brm2_distrn.pro
 
     """
     # Obtain normalization coefficient, norm.
@@ -101,13 +104,17 @@ def broken_powerlaw_f(x, p, q, eelow, eebrk, eehigh):
 
     Notes
     -----
+    The *integral* of a normalized, double power law electron distribution function is computed.
+    p is the lower power-law index, between eelow and eebrk, and q is the
+    upper power-law index, between eebrk and eehigh.
 
     History
     -----
     Shane Maloney: Initial version modified from SSW Brm2_F_Distrn.pro:
+        https://hesperia.gsfc.nasa.gov/ssw/packages/xray/idl/brm2/brm2_f_distrn.pro
     03/15/2020, Bin Chen (bin.chen@njit.edu)
-        - Changed name from "broken_powerlaw()" to "broken_powerlaw_f()"
-            this is to indicate that the results are electron flux distribution
+        - Changed name from the original "broken_powerlaw()" to "broken_powerlaw_f()"
+            this is to indicate that the results are the integral of the electron distribution function
     """
     # Obtain normalization coefficient, norm.
     n0 = (q - 1.0) / (p - 1.0) * eebrk ** (p - 1) * eelow ** (1 - p)
@@ -285,7 +292,7 @@ def brm2_fthin(electron_energy, photon_energy, eelow, eebrk, eehigh, p, q, z=1.2
         High energy cutoff
     p : float
         Slope below the break energy
-    q : flaot
+    q : float
         Slope above the break energy
     z : float
         Mean atomic number of plasma
@@ -304,7 +311,7 @@ def brm2_fthin(electron_energy, photon_energy, eelow, eebrk, eehigh, p, q, z=1.2
     History
     ------
     Mar 13, 2020, binchen@njit.edu, initial version modified from SSW Brm2_FThin.pro:
-    https://hesperia.gsfc.nasa.gov/ssw/packages/xray/idl/brm2/brm2_fthin.pro
+        https://hesperia.gsfc.nasa.gov/ssw/packages/xray/idl/brm2/brm2_fthin.pro
     """
     mc2 = 510.98
     clight = 2.9979e10
@@ -437,7 +444,7 @@ def brm_gauss_legendre(x1, x2, npoints):
     return x, w
 
 
-def brm2_dmlin(a, b, maxfcn, rerr, eph, eelow, eebrk, eehigh, p, q, z, efd=True):
+def brm2_dmlin(a, b, maxfcn, rerr, eph, eelow, eebrk, eehigh, p, q, z, efd=True, verbose=False):
     """
     This is used for thin-target calculation from a double power-law electron density distribution
     To integrate a function via the method of Gaussian quadrature.  Repeatedly
@@ -481,6 +488,8 @@ def brm2_dmlin(a, b, maxfcn, rerr, eph, eelow, eebrk, eehigh, p, q, z, efd=True)
         Mean atomic number of plasma
     efd: True (default) - electron flux density distribution, False - electron density distribution.
          This input is not used in the main routine, but is passed to Brm_Fthin()
+    verbose: bool. Default False
+         If True, Print extra information in command line
 
     Returns
     -------
@@ -517,7 +526,8 @@ def brm2_dmlin(a, b, maxfcn, rerr, eph, eelow, eebrk, eehigh, p, q, z, efd=True)
     P2 = np.where(a < en_vals[1])[0]  # photon energy lower than break energy
 
     if P2.size > 0 and (en_vals[1] > en_vals[0]):
-        print('======Integrating Part1 between eelow and eebrk======')
+        if verbose:
+            print('======Integrating Part1 between eelow and eebrk======')
         if P1.size > 0:
             aa[P1] = eelow
 
@@ -560,8 +570,8 @@ def brm2_dmlin(a, b, maxfcn, rerr, eph, eelow, eebrk, eehigh, p, q, z, efd=True)
     if (P3.size > 0) and (en_vals[2] > en_vals[1]):
         if P2.size > 0:
             aa[P2] = en_vals[1]
-
-        print('======Integrating Part2 between eebrk and eehigh======')
+        if verbose:
+            print('======Integrating Part2 between eebrk and eehigh======')
 
         a_lg = np.log10(aa[P3])
         b_lg = np.log10(np.full_like(a_lg, en_vals[2]))
@@ -836,11 +846,11 @@ def Brm2_ThinTarget(eph, p, eebrk, q, eelow, eehigh):
 
     Returns
     -------
-    np.array : flux
-        The computed Bremsstrahlung photon flux at the given photon energies.
-        Unit: photons s^-1 keV^-1 cm^-2, normalized to a total integrated electron flux of 1e35 electrons s^-1.
-             i.e., if electron flux is A * 1e35 electrons s^-1, photon flux is
-             A * Brm2_ThinTarget() photons s^-1 keV^-1 cm^-2
+    flux: np.array
+        Multiplying the output of Brm2_ThinTarget by a0 * 1.0d+55 gives an array of
+        photon fluxes in photons s^-1 keV^-1 cm^-2, corresponding to the photon energies in the input array eph.
+        The detector is assumed to be 1 AU rom the source. a0 is normalization factor in units of 1.0d55 cm-2 s-1,
+        i.e. plasma density (cm^-3) * volume of source (cm^3) * integrated electron flux density (cm^-2 s^-1)
 
     Notes
     -----
@@ -853,7 +863,7 @@ def Brm2_ThinTarget(eph, p, eebrk, q, eelow, eehigh):
     03/15/2020, Bin Chen (binchen@njit.edu): - Initial version modified from SSW Brm2_ThinTarget.pro:
         https://hesperia.gsfc.nasa.gov/ssw/packages/xray/idl/brm2/brm2_thintarget.pro
     """
-    # use electron flux distribution (the electron density distribution is used if EFD = 0)
+    # use electron flux distribution (the electron density distribution is used if EFD = False)
     efd = True
 
     mc2 = 510.98  # electron rest mass in keV
@@ -921,10 +931,11 @@ def Brm2_ThickTarget(eph, p, eebrk, q, eelow, eehigh):
     Returns
     -------
     np.array : flux
-        The computed Bremsstrahlung photon flux at the given photon energies.
-        Unit: photons s^-1 keV^-1 cm^-2, normalized to a total integrated electron flux of 1e35 electrons s^-1.
-             i.e., if electron flux is a * 1e35 electrons s^-1, photon flux is
-             a * Brm_ThickTarget() photons s^-1 keV^-1 cm^-2
+        The computed bremsstrahlung photon flux at the given photon energies.
+        Array of photon fluxes (in photons s^-1 keV^-1 cm^-2), when multiplied by a0 * 1.0d+35,
+        corresponding to the photon energies in the input array eph.
+        The detector is assumed to be 1 AU from the source.
+        a0 is the total integrated electron flux, in units of 10^35 electrons s^-1.
 
     Notes
     -----
@@ -976,4 +987,4 @@ def Brm2_ThickTarget(eph, p, eebrk, q, eelow, eehigh):
 
         return flux
     else:
-        raise Warning('The photon energies ')
+        raise Warning('The photon energies are higher than the highest electron energy or not greater than zero')
