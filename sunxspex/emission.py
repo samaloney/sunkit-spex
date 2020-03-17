@@ -10,7 +10,6 @@ References
 
 """
 import numpy as np
-import pdb
 from scipy.special import lpmv
 
 from sunxspex.constants import Constants
