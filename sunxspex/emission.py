@@ -50,9 +50,7 @@ def broken_powerlaw(x, p, q, eelow, eebrk, eehigh):
     p is the lower power-law index, between eelow and eebrk, and q is the
     upper power-law index, between eebrk and eehigh.
 
-    History
-    -----
-    03/15/2020, Bin Chen (bin.chen@njit.edu), adapted from SSW Brm2_Distrn.pro:
+    Adapted from SSW Brm2_Distrn.pro:
         https://hesperia.gsfc.nasa.gov/ssw/packages/xray/idl/brm2/brm2_distrn.pro
 
     """
@@ -108,13 +106,8 @@ def broken_powerlaw_f(x, p, q, eelow, eebrk, eehigh):
     p is the lower power-law index, between eelow and eebrk, and q is the
     upper power-law index, between eebrk and eehigh.
 
-    History
-    -----
-    Shane Maloney: Initial version modified from SSW Brm2_F_Distrn.pro:
+    Adapted from SSW Brm2_F_Distrn.pro:
         https://hesperia.gsfc.nasa.gov/ssw/packages/xray/idl/brm2/brm2_f_distrn.pro
-    03/15/2020, Bin Chen (bin.chen@njit.edu)
-        - Changed name from the original "broken_powerlaw()" to "broken_powerlaw_f()"
-            this is to indicate that the results are the integral of the electron distribution function
     """
     # Obtain normalization coefficient, norm.
     n0 = (q - 1.0) / (p - 1.0) * eebrk ** (p - 1) * eelow ** (1 - p)
@@ -178,7 +171,8 @@ def collisional_loss(electron_energy):
 
     Notes
     -----
-    Initial version modified from SSW Brm_ELoss.pro
+    Initial version modified from SSW Brm_ELoss.pro:
+        https://hesperia.gsfc.nasa.gov/ssw/packages/xray/idl/brm/brm_eloss.pro
     """
     electron_rest_mass = const.get_constant('mc2')  # * u.keV #c.m_e * c.c**2
 
@@ -220,6 +214,7 @@ def bremsstrahlung_cross_section(electron_energy, photon_energy, z=1.2):
     1939) is included.
 
     Initial version modified from SSW Brm_BremCross.pro
+        https://hesperia.gsfc.nasa.gov/ssw/packages/xray/idl/brm/brm_bremcross.pro
     """
 
     mc2 = const.get_constant('mc2')
@@ -307,14 +302,11 @@ def brm2_fthin(electron_energy, photon_energy, eelow, eebrk, eehigh, p, q, z=1.2
 
     Notes
     -----
-
-    History
-    ------
-    Mar 13, 2020, binchen@njit.edu, initial version modified from SSW Brm2_FThin.pro:
+    Adapted from SSW Brm2_FThin.pro:
         https://hesperia.gsfc.nasa.gov/ssw/packages/xray/idl/brm2/brm2_fthin.pro
     """
-    mc2 = 510.98
-    clight = 2.9979e10
+    mc2 = const.get_constant('mc2')
+    clight = const.get_constant('clight')
     gamma = (electron_energy / mc2) + 1.0
     pc = np.sqrt(electron_energy * (electron_energy + 2.0 * mc2))
     #pdb.set_trace()
@@ -361,6 +353,7 @@ def brem_outer(electron_energy, photon_energy, eelow, eebrk, eehigh, p, q, z=1.2
     Notes
     -----
     Initial version modified from SSW Brm2_Fouter.pro
+        https://hesperia.gsfc.nasa.gov/ssw/packages/xray/idl/brm2/brm2_fouter.pro
     """
     mc2 = const.get_constant('mc2')
 
@@ -401,9 +394,8 @@ def brm_gauss_legendre(x1, x2, npoints):
 
     History
     ------
-    Shane Maloney: Initial version modified from SSW Brm_GauLeg54.pro:
+    Adapted from SSW Brm_GauLeg54.pro:
             https://hesperia.gsfc.nasa.gov/ssw/packages/xray/idl/brm/brm_gauleg54.pro
-    03/15/2020, Bin Chen (binchen@njit.edu): Fixed name (used to be a typo)
     """
     eps = 3e-14
     m = (npoints + 1) // 2
@@ -498,14 +490,14 @@ def brm2_dmlin(a, b, maxfcn, rerr, eph, eelow, eebrk, eehigh, p, q, z, efd=True,
         Array of integral evaluation (Dmlin) and array of error flags
         (ier, 0 for converged and 1 for nonconverge)
 
-    History:
-    -----
-    03/15/2020, Bin Chen (binchen@njit.edu). Initial version modified from SSW Brm2_Dmlin.pro:
-    https://hesperia.gsfc.nasa.gov/ssw/packages/xray/idl/brm2/brm2_dmlin.pro
+    Notes
+    -------
+    Adapted from SSW Brm2_Dmlin.pro:
+        https://hesperia.gsfc.nasa.gov/ssw/packages/xray/idl/brm2/brm2_dmlin.pro
 
     """
-    mc2 = 510.98
-    clight = 2.9979e10
+    mc2 = const.get_constant('mc2')
+    clight = const.get_constant('clight')
 
     if eebrk < eelow:
         eebrk = eelow
@@ -650,6 +642,7 @@ def brm2_dmlino_int(maxfcn, rerr, eph, eelow, eebrk, eehigh, p, q, z, a_lg, b_lg
     Notes
     -----
     Initial version modified from SSW Brm2_DmlinO_int.pro
+        https://hesperia.gsfc.nasa.gov/ssw/packages/xray/idl/brm2/brm2_dmlino_int.pro
     """
     nlim = 12  # 4096 points
 
@@ -726,7 +719,8 @@ def brm2_dmlino(a, b, maxfcn, rerr, eph, eelow, eebrk, eehigh, p, q, z):
         Array of integral evaluation and array of error flags
     Notes
     -----
-    Initial version modified from SSW Brm2_DmlinO.pro
+    Initial version modified from SSW Brm2_DmlinO.pro:
+        https://hesperia.gsfc.nasa.gov/ssw/packages/xray/idl/brm2/brm2_dmlino.pro
 
     """
     mc2 = const.get_constant('mc2')
@@ -820,7 +814,7 @@ def brm2_dmlino(a, b, maxfcn, rerr, eph, eelow, eebrk, eehigh, p, q, z):
     return DmlinO, ier
 
 
-def Brm2_ThinTarget(eph, p, eebrk, q, eelow, eehigh):
+def bremsstrahlung_thin_target(eph, p, eebrk, q, eelow, eehigh):
     """
     Computes the thin-target bremsstrahlung x-ray/gamma-ray spectrum from an isotropic electron
     distribution function provided in `broken_powerlaw`. The units of the computed flux is photons
@@ -858,9 +852,7 @@ def Brm2_ThinTarget(eph, p, eebrk, q, eelow, eehigh):
     a function of photon energy, you should set RERR to 1.d-6, because it is more sensitive to RERR
     than the flux.
 
-    History
-    -------
-    03/15/2020, Bin Chen (binchen@njit.edu): - Initial version modified from SSW Brm2_ThinTarget.pro:
+    Adapted from SSW Brm2_ThinTarget.pro:
         https://hesperia.gsfc.nasa.gov/ssw/packages/xray/idl/brm2/brm2_thintarget.pro
     """
     # use electron flux distribution (the electron density distribution is used if EFD = False)
@@ -904,7 +896,7 @@ def Brm2_ThinTarget(eph, p, eebrk, q, eelow, eehigh):
     else:
         raise Warning('The photon energies are higher than the highest electron energy or not greater than zero')
 
-def Brm2_ThickTarget(eph, p, eebrk, q, eelow, eehigh):
+def bremsstrahlung_thick_target(eph, p, eebrk, q, eelow, eehigh):
     """
     Computes the thick-target bremsstrahlung x-ray/gamma-ray spectrum from an isotropic electron
     distribution function provided in `broken_powerlaw_f`. The units of the computed flux is photons
@@ -943,11 +935,8 @@ def Brm2_ThickTarget(eph, p, eebrk, q, eelow, eehigh):
     a function of photon energy, you should set RERR to 1.d-6, because it is more sensitive to RERR
     than the flux.
 
-    History
-    -----
-    Initial version modified from SSW Brm2_ThickTarget.pro by Shane Maloney
-    03/15/2020, Bin Chen (binchen@njit.edu): - Changed name to be consistent with sswIDL version
-                                             - Modified documentation
+    Adapted from SSW Brm2_ThickTarget.pro:
+        https://hesperia.gsfc.nasa.gov/ssw/packages/xray/idl/brm2/brm2_thicktarget.pro
     """
     # Constants
     mc2 = const.get_constant('mc2')

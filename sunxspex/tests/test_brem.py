@@ -32,7 +32,7 @@ def test_brem_cross_section():
 
 def test_brem_thicktarget():
     photon_energies = np.array([5, 10, 50, 150, 300, 500, 750, 1000], dtype=np.float64)
-    res = emission.Brm2_ThickTarget(photon_energies, 5, 1000, 5, 10, 10000)
+    res = emission.bremsstrahlung_thick_target(photon_energies, 5, 1000, 5, 10, 10000)
     # IDL code to generate values taken from cross flux
     # flux = Brm2_ThickTarget([5, 10, 50, 150, 300, 500, 750, 1000], [1, 5,1000,5,10,10000])
     assert np.allclose(res, [3.5282883164459861975673291444470203760637592388101219288332650651371110170457542922313942321266289070536004146561026573181152343750000000000000000000000000000000e-34,
@@ -46,7 +46,7 @@ def test_brem_thicktarget():
 
 def test_brem_thintarget():
     photon_energies = np.array([5, 10, 50, 150, 300, 500, 750, 1000], dtype=np.float64)
-    res = emission.Brm2_ThinTarget(photon_energies, 5, 1000, 5, 10, 10000)
+    res = emission.bremsstrahlung_thin_target(photon_energies, 5, 1000, 5, 10, 10000)
     # IDL code to generate values taken from cross flux
     # flux = Brm2_ThinTarget([5, 10, 50, 150, 300, 500, 750, 1000], [1, 5, 1000, 5, 10, 10000])
     res_idl = [1.3792306669225426e-53, 3.2319324672606256e-54, 1.8906418622815277e-58, 2.7707947605222644e-61,
@@ -55,7 +55,7 @@ def test_brem_thintarget():
 
 def test_brem_thintarget2():
     photon_energies = np.array([5, 10, 50, 150, 300, 500, 750, 1000], dtype=np.float64)
-    res = emission.Brm2_ThinTarget(photon_energies, 3, 200, 6, 7, 10000)
+    res = emission.bremsstrahlung_thin_target(photon_energies, 3, 200, 6, 7, 10000)
     # IDL code to generate values taken from cross flux
     # flux = Brm2_ThinTarget([5, 10, 50, 150, 300, 500, 750, 1000], [1, 3, 200, 6, 7, 10000])
     res_idl = [1.410470406773663e-53, 1.631245131596281e-54, 2.494893311659408e-57, 2.082487752231794e-59,
