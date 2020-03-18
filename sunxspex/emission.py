@@ -291,8 +291,10 @@ def brm2_fthin(electron_energy, photon_energy, eelow, eebrk, eehigh, p, q, z=1.2
     z : float
         Mean atomic number of plasma
     efd: bool
-        If set to True (default), the electron flux distribution is calculated from broken_powerlaw().
-        If set to False, the electron density distribution is calculated from broken_powerlaw().
+        If set to True (default), the electron flux distribution (electrons cm^-2 s^-1 keV^-1)
+            is calculated from broken_powerlaw().
+        If set to False, the electron density distribution (electrons cm^-3 keV^-1)
+            is calculated from broken_powerlaw().
 
     Returns
     -------
@@ -310,13 +312,13 @@ def brm2_fthin(electron_energy, photon_energy, eelow, eebrk, eehigh, p, q, z=1.2
     pc = np.sqrt(electron_energy * (electron_energy + 2.0 * mc2))
     #pdb.set_trace()
     brem_cross = bremsstrahlung_cross_section(electron_energy, photon_energy, z)
-    electron_flux = broken_powerlaw(electron_energy, p, q, eelow, eebrk, eehigh)
+    electron_dist = broken_powerlaw(electron_energy, p, q, eelow, eebrk, eehigh)
     if efd:
-        # if electron flux distribution is assumed
-        photon_flux = electron_flux * brem_cross * (mc2 / clight)
+        # if electron flux distribution is assumed (default)
+        photon_flux = electron_dist * brem_cross * (mc2 / clight)
     else:
-        # if electron density distribution is assumed (default)
-        photon_flux = electron_flux * brem_cross * pc / gamma  # that is n_e * sigma * mc2 * v / c
+        # if electron density distribution is assumed
+        photon_flux = electron_dist * brem_cross * pc / gamma  # that is n_e * sigma * mc2 * (v / c)
 
     return photon_flux
 
@@ -813,7 +815,7 @@ def brm2_dmlino(a, b, maxfcn, rerr, eph, eelow, eebrk, eehigh, p, q, z):
     return DmlinO, ier
 
 
-def bremsstrahlung_thin_target(eph, p, eebrk, q, eelow, eehigh):
+def bremsstrahlung_thin_target(eph, p, eebrk, q, eelow, eehigh, efd=True):
     """
     Computes the thin-target bremsstrahlung x-ray/gamma-ray spectrum from an isotropic electron
     distribution function provided in `broken_powerlaw`. The units of the computed flux is photons
@@ -836,14 +838,24 @@ def bremsstrahlung_thin_target(eph, p, eebrk, q, eelow, eehigh):
         Low energy electron cut off
     eehigh : float
         High energy electron cut off
+    efd: bool.
+        True (default) - input electron distribution is electron flux density distribution
+            (unit electrons cm^-2 s^-1 keV^-1),
+        False - input electron distribution is electron density distribution.
+            (unit electrons cm^-3 keV^-1),
+         This input is not used in the main routine, but is passed to brm2_dmlin() (and Brm2_Fthin())
 
     Returns
     -------
     flux: np.array
-        Multiplying the output of Brm2_ThinTarget by a0 * 1.0d+55 gives an array of
+        Multiplying the output of Brm2_ThinTarget by a0 gives an array of
         photon fluxes in photons s^-1 keV^-1 cm^-2, corresponding to the photon energies in the input array eph.
-        The detector is assumed to be 1 AU rom the source. a0 is normalization factor in units of 1.0d55 cm-2 s-1,
-        i.e. plasma density (cm^-3) * volume of source (cm^3) * integrated electron flux density (cm^-2 s^-1)
+        The detector is assumed to be 1 AU rom the source.
+        The coefficient a0 is calculated as a0 = nth * V * nnth, where
+            nth: plasma density; cm^-3)
+            V: volume of source; cm^3)
+            nnth: Integrated nonthermal electron flux density (cm^-2 s^-1), if efd = True, or
+                  Integrated electron number density (cm^-3), if efd = False
 
     Notes
     -----
@@ -854,13 +866,10 @@ def bremsstrahlung_thin_target(eph, p, eebrk, q, eelow, eehigh):
     Adapted from SSW Brm2_ThinTarget.pro:
         https://hesperia.gsfc.nasa.gov/ssw/packages/xray/idl/brm2/brm2_thintarget.pro
     """
-    # use electron flux distribution (the electron density distribution is used if EFD = False)
-    efd = True
-
-    mc2 = 510.98  # electron rest mass in keV
-    clight = 2.9979e10  # speed of light cm/s
-    au = 1.496e13  # astronomical unit cm
-    r0 = 2.8179e-13  # classical electron radius cm
+    mc2 = const.get_constant('mc2')
+    clight = const.get_constant('clight')
+    au = const.get_constant('au')
+    r0 = const.get_constant('r0')
 
     # Max number of points
     maxfcn = 2048
