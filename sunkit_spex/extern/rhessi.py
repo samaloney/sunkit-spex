@@ -9,7 +9,8 @@ import matplotlib.dates as mdates
 import matplotlib.pyplot as plt
 import numpy as np
 
-from sunkit_spex.legacy.fitting_legacy import instruments
+from sunkit_spex.legacy.fitting import instruments
+from sunpy.time import time  # noqa: F401
 
 
 class RhessiLoader(instruments.InstrumentBlueprint):
@@ -27,16 +28,15 @@ class RhessiLoader(instruments.InstrumentBlueprint):
     [1] https://heasarc.gsfc.nasa.gov/xanadu/xspec/manual/XSappendixStatistics.html
     """
 
-    def __init__(self, spectrum_fn, srm_fn, **kwargs):
+    def __init__(self, spectrum_fn, srm_fn):
         """
         Spectrum and SRM files are both required: attenuator state change times
             are in the spectrum file,
             and the state determines which SRM will be used.
         """
-        self._construction_string = f"RhessiLoader(spectrum_fn={spectrum_fn}, " f"srm_fn={srm_fn}," f"**{kwargs})"
+        self._construction_string = f"RhessiLoader(spectrum_fn={spectrum_fn}, " f"srm_fn={srm_fn})"
         self._systematic_error = 0
         self.load_prepare_spectrum_srm(spectrum_fn, srm_fn)
-        self._start_background_time, self._end_background_time = None, None
 
     @property
     def systematic_error(self):
@@ -83,8 +83,6 @@ class RhessiLoader(instruments.InstrumentBlueprint):
         # avoid SRM setting issues
         self._start_event_time, self._end_event_time = self.start_data_time, self.end_data_time
 
-        # Assume unattenuated SRM until spectroscopy interval is specified
-        UNATTENUATED_STATE = 0
         self._loaded_spec_data = {
             "photon_channel_bins": photon_bins,
             "photon_channel_binning": photon_binning,
@@ -92,14 +90,16 @@ class RhessiLoader(instruments.InstrumentBlueprint):
             "count_channel_bins": channel_bins,
             "count_channel_binning": (ch_de := np.diff(channel_bins, axis=1).flatten()),
             "count_channel_mids": channel_bins[:, 0] + ch_de / 2,
-            "srm": srm["srm_options"][UNATTENUATED_STATE],
+            "srm": list(srm["srm_options"].values())[0],  # default to first state
             "extras": dict(),
         }
         self._update_event_data_with_times()
         self._original_data = copy.deepcopy(self._loaded_spec_data)
+        # Set these times to sensible defaults
+        self.update_background_times(self._start_event_time, self._end_event_time)
 
     @property
-    def subtract_background(self):
+    def subtract_background(self) -> bool:
         """
         States whether the the data is event minus background or not.
         """
@@ -190,20 +190,22 @@ class RhessiLoader(instruments.InstrumentBlueprint):
         """
         start_time, end_time = self._start_event_time, self._end_event_time
         change_times = self._attenuator_state_info["change_times"]
-        for t in change_times:
-            if start_time <= t <= end_time:
-                warnings.warn(
-                    f"\ndo not update event times to ({start_time}, {end_time}): "
-                    "covers attenuator state change. Don't trust this fit!"
-                )
+        if len(change_times) > 1:
+            for t in change_times:
+                if start_time <= t <= end_time:
+                    warnings.warn(
+                        f"\ndo not update event times to ({start_time}, {end_time}): "
+                        "covers attenuator state change. Don't trust this fit!"
+                    )
 
-        new_att_state = 0
-        for i in range(len(self._attenuator_state_info["states"]) - 1):
-            state = self._attenuator_state_info["states"][i]
-            if change_times[i] < start_time and end_time < change_times[i + 1]:
-                new_att_state = state
-                break
-
+        n_states = len(self._attenuator_state_info["states"])
+        new_att_state = self._attenuator_state_info["states"][0]  # default to first
+        if n_states > 1:
+            for i in range(n_states - 1):
+                state = self._attenuator_state_info["states"][i]
+                if change_times[i] < start_time and end_time < change_times[i + 1]:
+                    new_att_state = state
+                    break
         self._loaded_spec_data["srm"] = self._srm["srm_options"][new_att_state].astype(float)
 
     def _update_event_data_with_times(self):
@@ -231,7 +233,8 @@ class RhessiLoader(instruments.InstrumentBlueprint):
                     self._data_time_select(
                         stime=self._start_event_time, full_data=self._spectrum["counts_err"], etime=self._end_event_time
                     )
-                    ** 2
+                    ** 2,
+                    axis=0,
                 )
             )
         )
@@ -409,10 +412,7 @@ class RhessiLoader(instruments.InstrumentBlueprint):
     def lightcurve(self, energy_ranges=None, axes=None, rebin_time=1):
         """Creates a RHESSI lightcurve.
 
-        Helps the user see the RHESSI time profile. The defined event time (defined either through `start_event_time`,
-        `end_event_time` setters, or `select_time(...)` method) is shown with a purple shaded region and if a background
-        time (defined either through `start_background_time`, `end_background_time` setters, or
-        `select_time(...,background=True)` method) is defined then it is shown with an orange shaded region.
+        The background and event times are highlighted based on what the user has set.
 
         Parameters
         ----------
@@ -443,10 +443,9 @@ class RhessiLoader(instruments.InstrumentBlueprint):
         elif len(np.shape(energy_ranges)) == 1:
             energy_ranges = [energy_ranges]
         elif len(np.shape(energy_ranges)) == 0:
-            print(
+            raise ValueError(
                 "The `energy_ranges` input should be a range of two energy values (e.g., [4,8] meaning 4-8 keV inclusive) or a list of these ranges."
             )
-            return
 
         ax = axes or plt.gca()
         font_size = plt.rcParams["font.size"]
@@ -460,11 +459,11 @@ class RhessiLoader(instruments.InstrumentBlueprint):
 
         # plot each energy range
         time_binning = (flat_times[1:] - flat_times[:-1]).to_value("s")
+        left_edges, right_edges = self._loaded_spec_data["count_channel_bins"].T
         for er in energy_ranges:
-            i = np.where(
-                (self._loaded_spec_data["count_channel_bins"][:, 0] >= er[0])
-                & (self._loaded_spec_data["count_channel_bins"][:, -1] <= er[-1])
-            )
+            # Restrict the energy range to the data energy bins
+            ea, eb = max(er[0], left_edges[0]), min(er[1], right_edges[-1])
+            i = np.where((left_edges >= ea) & (right_edges <= eb))
             e_range_cts = np.sum(self._spectrum["counts"][:, i].reshape((len(time_binning), -1)), axis=1)
 
             if rebin_time > 1:
@@ -473,7 +472,7 @@ class RhessiLoader(instruments.InstrumentBlueprint):
 
             e_range_ctr, e_range_ctr_err = e_range_cts / time_binning, np.sqrt(e_range_cts) / time_binning
             lc = e_range_ctr
-            p = ax.stairs(lc, flat_times.datetime, label=f"{er[0]}$-${er[-1]} keV")
+            p = ax.stairs(lc, flat_times.datetime, label=f"{ea}$-${eb} keV")
             ax.errorbar(
                 x=time_mids.datetime, y=e_range_ctr, yerr=e_range_ctr_err, c=p.get_edgecolor(), ls=""
             )  # error bar in middle of the bin
@@ -513,10 +512,7 @@ class RhessiLoader(instruments.InstrumentBlueprint):
     def spectrogram(self, axes=None, rebin_time=1, rebin_energy=1, **kwargs):
         """Creates a RHESSI spectrogram.
 
-        Helps the user see the RHESSI time and energy evolution. The defined event time (defined either through
-        `start_event_time`, `end_event_time` setters, or `select_time(...)` method) is shown with a violet line
-        and if a background time (defined either through `start_background_time`, `end_background_time` setters,
-        or `select_time(...,background=True)` method) is defined then it is shown with an orange line.
+        The background and event times are highlighted based on what the user has set.
 
         Parameters
         ----------
@@ -602,32 +598,65 @@ class RhessiLoader(instruments.InstrumentBlueprint):
 
         return ax
 
-    def select_time(self, start=None, end=None, background=False):
-        """Provides method to set start and end time of the event or background in one line.
+    # "retroactive" properties for setting the times like in older versions,
+    # for legacy compatibility.
+    @property
+    def start_event_time(self):
+        time_depr_warn('event')
+        return self._start_event_time
 
-        Parameters
-        ----------
-        start, end : str, `astropy.Time`, None
-                String to be given to astropy's Time, `astropy.Time` is used directly, None sets the
-                start/end event time to be the first time of the data. None doesn't add, or will remove,
-                any background data in `_loaded_spec_data["extras"]` if background is set to True.
-                Default: None
+    @start_event_time.setter
+    def start_event_time(self, new_time: atime.Time):
+        time_depr_warn('event')
+        self.update_event_times(new_time, self._end_event_time)
 
-        background : bool
-                Determines whether the start and end times are for the event (False) or background
-                time (True).
-                Default: False
+    @property
+    def end_event_time(self):
+        time_depr_warn('event')
+        return self._end_event_time
 
-        Returns
-        -------
-        None.
-        """
-        self.__warn = False if (type(start) != type(None)) and (type(end) != type(None)) else True
+    @end_event_time.setter
+    def end_event_time(self, new_time: atime.Time):
+        time_depr_warn('event')
+        self.update_event_times(self._start_event_time, new_time)
 
-        if background:
-            self.start_background_time, self.end_background_time = start, end
-        else:
-            self.start_event_time, self.end_event_time = start, end
+    @property
+    def start_background_time(self):
+        time_depr_warn('background')
+        return self._start_background_time
+
+    @start_background_time.setter
+    def start_background_time(self, new_time: atime.Time):
+        time_depr_warn('background')
+        self.update_background_times(new_time, self._end_background_time)
+
+    @property
+    def end_background_time(self):
+        time_depr_warn('background')
+        return self._end_background_time
+
+    @end_background_time.setter
+    def end_background_time(self, new_time: atime.Time):
+        time_depr_warn('background')
+        self.update_background_times(self._start_background_time, new_time)
+
+    # "retroactive" properties for specifying background subtraction,
+    # like in older versions.
+    @property
+    def data2data_minus_background(self) -> bool:
+        warnings.warn(
+            "Please use the `subtract_background` property instead.",
+            stacklevel=2
+        )
+        return self.subtract_background
+
+    @data2data_minus_background.setter
+    def data2data_minus_background(self, do_subtract: bool):
+        warnings.warn(
+            "Please use the `subtract_background` property instead.",
+            stacklevel=2
+        )
+        self.subtract_background = do_subtract
 
 
 def load_spectrum(spec_fn: str):
@@ -691,15 +720,12 @@ def load_spectrum(spec_fn: str):
 
 def _extract_attenunator_info(att_dat) -> dict[str, list]:
     """Pull out attenuator states and times"""
-    # swap the UNIX year with the date_obs year
-    # they don't match because the UNIX year is not the reference year
-    # as per Kim Tolbert
-    obs_year = atime.Time(att_dat.header["DATE_OBS"]).datetime.year
-    dtimes = atime.Time(att_dat.data["SP_ATTEN_STATE$$TIME"], format="unix").datetime[0]
-    dtimes = [dt.replace(year=obs_year) for dt in dtimes]
+    n_attenuator_changes = att_dat.data["SP_ATTEN_STATE$$TIME"].size
+    atten_change_times = atime.Time(att_dat.data["SP_ATTEN_STATE$$TIME"], format="utime").utc
+    atten_change_times = atten_change_times.reshape(n_attenuator_changes)  # reshape so always 1d array
     return {
-        "change_times": atime.Time(dtimes, format="datetime"),
-        "states": list(*att_dat.data["SP_ATTEN_STATE$$STATE"]),
+        "change_times": atten_change_times,
+        "states": att_dat.data["SP_ATTEN_STATE$$STATE"].reshape(n_attenuator_changes).tolist(),
     }
 
 
@@ -802,3 +828,18 @@ def load_srm(srm_file: str):
     }
 
     return dict(channel_bins=channel_bins, photon_bins=photon_bins, srm_options=ret_srms)
+
+
+class LegacyRhessiLoader(RhessiLoader):
+    '''Allow legacy `Fitter` to load in RHESSI data with the expected args format'''
+    def __init__(self, spec_fn, **kw):
+        srm_fn = kw.pop('srm_file')
+        super().__init__(spec_fn, srm_fn)
+
+
+def time_depr_warn(partial_name: str):
+    warnings.warn(
+        "This time-related property is deprecated. "
+        f"In the future, please use `RhessiLoader.update_{partial_name}_times`",
+        stacklevel=2
+    )

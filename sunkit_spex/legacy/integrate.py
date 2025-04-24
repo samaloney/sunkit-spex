@@ -1,7 +1,7 @@
 import numpy as np
 from scipy.integrate._quadrature import _cached_roots_legendre
 
-__all__ = ["gauss_legendre", "fixed_quad"]
+__all__ = ["fixed_quad", "gauss_legendre"]
 
 
 def _legendre_roots(a, b, n=5):
@@ -82,7 +82,7 @@ def gauss_legendre(func, a, b, n=5, args=(), func_kwargs={}):
     array([0.99999998])
     >>> gauss_legendre(np.cos,0.0,np.pi/2,n=5)
     array([1.])
-    >>> np.sin(np.pi/2)-np.sin(0)  # analytical result
+    >>> float(np.sin(np.pi/2)-np.sin(0))  # analytical result
     1.0
     """
     a = np.atleast_1d(a)
@@ -91,9 +91,7 @@ def gauss_legendre(func, a, b, n=5, args=(), func_kwargs={}):
         xi,
         wi,
     ) = _legendre_roots(a, b, n)
-    integral = np.sum(wi * func(xi, *args, **func_kwargs), axis=1)
-
-    return integral
+    return np.sum(wi * func(xi, *args, **func_kwargs), axis=1)
 
 
 def fixed_quad(func, a, b, n=5, args=(), func_kwargs={}):
@@ -147,7 +145,7 @@ def fixed_quad(func, a, b, n=5, args=(), func_kwargs={}):
     array(0.99999998)
     >>> fixed_quad(np.cos,0.0,np.pi/2,n=5)
      array(1.)
-    >>> np.sin(np.pi/2)-np.sin(0)  # analytical result
+    >>> float(np.sin(np.pi/2)-np.sin(0))  # analytical result
     1.0
 
     """
@@ -156,6 +154,6 @@ def fixed_quad(func, a, b, n=5, args=(), func_kwargs={}):
     x, w = _cached_roots_legendre(n)
     x = np.real(x)
     if np.any(np.isinf(a)) or np.any(np.isinf(b)):
-        raise ValueError("Gaussian quadrature is only available for " "finite limits.")
+        raise ValueError("Gaussian quadrature is only available for finite limits.")
     y = (b - a).reshape(-1, 1) * (x + 1) / 2.0 + a.reshape(-1, 1)
     return np.squeeze((b - a).reshape(1, -1) / 2.0 * np.sum(w * func(y, *args, **func_kwargs), axis=1))

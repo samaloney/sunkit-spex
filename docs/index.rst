@@ -1,5 +1,6 @@
+*************************
 sunkit-spex Documentation
-=========================
+*************************
 
 Everything you need to know about sunkit-spex.
 
@@ -15,7 +16,7 @@ will help you know where to look for certain things:
 * :doc:`Topic guides </discussion/index>` discuss key topics and concepts at a
   fairly high level and provide useful background information and explanation.
 
-* :doc:`Reference guides </reference/index>` contain technical reference for APIs and
+* :doc:`Reference </reference/index>` contain technical reference for APIs and
   other aspects of sunkit-spex machinery. They describe how it works and how to
   use it but assume that you have a basic understanding of key concepts.
 
@@ -25,9 +26,17 @@ will help you know where to look for certain things:
 
 .. toctree::
    :maxdepth: 2
+   :caption: Contents:
 
    tutorials/index
    how_to/index
    discussion/index
    reference/index
    whatsnew/index
+
+Indices and tables
+==================
+
+* :ref:`genindex`
+* :ref:`modindex`
+* :ref:`search`
