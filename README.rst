@@ -25,8 +25,8 @@
 .. |Project Status: Active| image:: https://www.repostatus.org/badges/latest/active.svg
    :target: https://www.repostatus.org/#active
 
-.. |Zenodo - Latest DOI| image:: https://zenodo.org/badge/175066331.svg
-   :target: https://zenodo.org/doi/10.5281/zenodo.11526911
+.. |Zenodo - Latest DOI| image:: https://zenodo.org/badge/DOI/10.5281/zenodo.11526911.svg
+   :target: https://doi.org/10.5281/zenodo.11526911
 
 .. |Continuous Integration Status| image:: https://github.com/sunpy/sunkit-spex/actions/workflows/ci.yml/badge.svg?branch=main
    :target: https://github.com/sunpy/sunkit-spex/actions/workflows/ci.yml
